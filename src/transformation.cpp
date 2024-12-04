@@ -21,10 +21,13 @@ using namespace lbcrypto;
 // 암호문 생성
 // Ciphertext<DCRTPoly> ctx = cc->Encrypt(keyPair.publicKey, ptx);
 
+// Enc Scheme 을 정해서 OpenFHE 의 템플릿 타입을 명확하게 정할 필요가 있어 보임
+
 // 각도 Theta 계산
 Ciphertext<?> calcTheta(CryptoContext<?>& cc, double timeDelta, Ciphertext<?> ctxW) {
   // Ciphertext - Plaintext multiplication
-  auto ctxTheta = cc->EvalMult(ctxW, timeDelta);
+  auto plainTimeDelta = cc->MakeCKKSPackedPlaintext(std::vector<double>{timeDelta});
+  auto ctxTheta = cc->EvalMult(ctxW, plainTimeDelta);
   return ctxTheta;
 }
 
@@ -35,8 +38,8 @@ void calcTrigonWithTaylor(CryptoContext<?>& cc, Ciphertext<?>& ctxTheta, Ciphert
   int ft = 1;
 
   // sin cos 초기화
-  ctxSin = cc->Encrypt(keyPair.publicKey, cc->MakeCKKSPackedPlaintext(std::vector<double>{1}));
-  ctxCos = ctxTheta;
+  ctxSin = ctxTheta->Clone();
+  ctxCos = cc->Encrypt(keyPair.publicKey, cc->MakeCKKSPackedPlaintext(std::vector<double>{1}));
   auto ctxOrigin = ctxTheta->Clone();
 
   // sin + cos 8 항
@@ -44,24 +47,21 @@ void calcTrigonWithTaylor(CryptoContext<?>& cc, Ciphertext<?>& ctxTheta, Ciphert
     ft *= i;
 
     // 상수 상태 역수 계산
-    double temp = 1 / (double) ft;
+    double temp = 1 / static_cast<double>(ft);
 
-    // Theta * Theta
+    // Theta * i 계산
     ctxTheta = cc->EvalMultAndRelinearize(ctxTheta, ctxOrigin);
     auto ctxTemp = cc->EvalMult(ctxTheta, temp);
 
-    if (i == 2) {
+    // Taylor Series
+    if (i % 4 == 2) {
       ctxCos = cc->EvalSub(ctxCos, ctxTemp);
-    } else if (i == 3) {
+    } else if (i % 4 == 3) {
       ctxSin = cc->EvalSub(ctxSin, ctxTemp);
-    } else if (i == 4) {
+    } else if (i % 4 == 0) {
       ctxCos = cc->EvalAdd(ctxCos, ctxTemp);
-    } else if (i == 5) {
+    } else if (i % 4 == 1) {
       ctxSin = cc->EvalAdd(ctxSin, ctxTemp);
-    } else if (i == 6) {
-      ctxCos = cc->EvalSub(ctxCos, ctxTemp);
-    } else if (i == 7) {
-      ctxSin = cc->EvalSub(ctxSin, ctxTemp);
     }
   }
 }
@@ -69,7 +69,7 @@ void calcTrigonWithTaylor(CryptoContext<?>& cc, Ciphertext<?>& ctxTheta, Ciphert
 // 가속도 벡터 역행렬 변환
 // r1 = (cos * ax) + (sin * ay)
 // r2 = (-sin * ax) + (cos * ay)
-// 4 section 독립적으로 계산
+// 4 section 독립적으로 계산 -> Thread Safe 하지 않아 보이는데 이렇게 사용해도 되는가?
 void calcMatTransform(CryptoContext<?>& cc, Ciphertext<?>& ctxSin, Ciphertext<?>& ctxCos, Ciphertext<?>& ctxX, Ciphertext<?>& ctxY) {
   // Temp Variable
   Ciphertext<?> temp1, temp2, temp3, temp4;
@@ -90,11 +90,12 @@ void calcMatTransform(CryptoContext<?>& cc, Ciphertext<?>& ctxSin, Ciphertext<?>
   }
 
   // ax Transformation
-  ctxX = cc->EvalAnd(temp1, temp2);
-
+  auto axTransform = cc->EvalAnd(temp1, temp2);
   // ay Transformation
-  auto negTemp3 = cc->EvalMult(temp3, -1);
-  ctxY = cc->EvalAdd(negTemp3, temp4);
+  auto ayTransform = cc->EvalAdd(temp4, cc->EvalMult(temp3, -1));
+
+  ctxX = axTransform;
+  ctxY = ayTransform;
 }
 
     
