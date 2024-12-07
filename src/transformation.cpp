@@ -24,7 +24,7 @@ using namespace lbcrypto;
 // Enc Scheme 을 정해서 OpenFHE 의 템플릿 타입을 명확하게 정할 필요가 있어 보임
 
 // 각도 Theta 계산
-Ciphertext<?> calcTheta(CryptoContext<?>& cc, double timeDelta, Ciphertext<?> ctxW) {
+Ciphertext<DCRTPoly> calcTheta(CryptoContext<DCRTPoly>& cc, double timeDelta, Ciphertext<DCRTPoly> ctxW) {
   // Ciphertext - Plaintext multiplication
   auto plainTimeDelta = cc->MakeCKKSPackedPlaintext(std::vector<double>{timeDelta});
   auto ctxTheta = cc->EvalMult(ctxW, plainTimeDelta);
@@ -33,7 +33,7 @@ Ciphertext<?> calcTheta(CryptoContext<?>& cc, double timeDelta, Ciphertext<?> ct
 
 // 삼각 함수 계산
 // 각도 : radian 단위 -> radian = 각도 * (pi/180)
-void calcTrigonWithTaylor(CryptoContext<?>& cc, Ciphertext<?>& ctxTheta, Ciphertext<?>& ctxSin, Ciphertext<?>& ctxCos) {
+void calcTrigonWithTaylor(CryptoContext<DCRTPoly>& cc, Ciphertext<DCRTPoly>& ctxTheta, Ciphertext<DCRTPoly>& ctxSin, Ciphertext<DCRTPoly>& ctxCos, KeyPair<DCRTPoly>& keyPair) {
   // factorial number
   int ft = 1;
 
@@ -70,10 +70,16 @@ void calcTrigonWithTaylor(CryptoContext<?>& cc, Ciphertext<?>& ctxTheta, Ciphert
 // r1 = (cos * ax) + (sin * ay)
 // r2 = (-sin * ax) + (cos * ay)
 // 4 section 독립적으로 계산 -> Thread Safe 하지 않아 보이는데 이렇게 사용해도 되는가?
-void calcMatTransform(CryptoContext<?>& cc, Ciphertext<?>& ctxSin, Ciphertext<?>& ctxCos, Ciphertext<?>& ctxX, Ciphertext<?>& ctxY) {
+void calcMatTransform(CryptoContext<DCRTPoly>& cc, Ciphertext<DCRTPoly>& ctxSin, Ciphertext<DCRTPoly>& ctxCos, Ciphertext<DCRTPoly>& ctxX, Ciphertext<DCRTPoly>& ctxY) {
   // Temp Variable
-  Ciphertext<?> temp1, temp2, temp3, temp4;
+  Ciphertext<DCRTPoly> temp1, temp2, temp3, temp4;
 
+  temp1 = cc->EvalMultAndRelinearize(ctxCos, ctxX);
+  temp2 = cc->EvalMultAndRelinearize(ctxSin, ctxY);
+  temp3 = cc->EvalMultAndRelinearize(ctxSin, ctxX);
+  temp4 = cc->EvalMultAndRelinearize(ctxCos, ctxY);
+  
+/*  
   #pragma omp parallel sections
 {
     #pragma omp section
@@ -88,9 +94,10 @@ void calcMatTransform(CryptoContext<?>& cc, Ciphertext<?>& ctxSin, Ciphertext<?>
     #pragma omp section
     temp4 = cc->EvalMultAndRelinearize(ctxCos, ctxY);
   }
-
+*/
+  
   // ax Transformation
-  auto axTransform = cc->EvalAnd(temp1, temp2);
+  auto axTransform = cc->EvalAdd(temp1, temp2);
   // ay Transformation
   auto ayTransform = cc->EvalAdd(temp4, cc->EvalMult(temp3, -1));
 
