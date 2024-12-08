@@ -1,5 +1,6 @@
-#include "imu_transformation.h"
+#include "transformation.hpp"
 #include "openfhe.h"
+#include <iostream>
 #include <omp.h>
 
 using namespace lbcrypto;
@@ -43,13 +44,14 @@ void calcTrigonWithTaylor(CryptoContext<DCRTPoly>& cc, Ciphertext<DCRTPoly>& ctx
   auto ctxOrigin = ctxTheta->Clone();
 
   // sin + cos 8 항
-  for (int i = 2; i < 8; i++) {
+  for (int i = 2; i < 4; i++) {
     ft *= i;
 
     // 상수 상태 역수 계산
     double temp = 1 / static_cast<double>(ft);
 
     // Theta * i 계산
+    //std::cout << "Run Relinearize" << std::endl;
     ctxTheta = cc->EvalMultAndRelinearize(ctxTheta, ctxOrigin);
     auto ctxTemp = cc->EvalMult(ctxTheta, temp);
 

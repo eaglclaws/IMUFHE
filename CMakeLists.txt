@@ -54,7 +54,7 @@ else()
 endif()
 
 ### ADD YOUR EXECUTABLE(s) HERE
-add_executable(IMUFHE src/main.cpp src/transformation.cpp)
+add_executable(IMUFHE src/main.cpp src/transformation.cpp src/parseCSV.cpp)
 ###
 ### EXAMPLE:
 ### add_executable( test demo-simple-example.cpp )
