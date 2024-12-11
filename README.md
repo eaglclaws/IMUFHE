@@ -1,6 +1,7 @@
 # IMUFHE
 Dead reckoning with FHE POC
-
+## Dependencies
+* openFHE
 ## Build
 ```git clone https://github.com/eaglclaws/IMUFHE```
 \
